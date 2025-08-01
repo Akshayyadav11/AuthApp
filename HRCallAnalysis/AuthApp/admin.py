@@ -30,7 +30,7 @@ class IsDeletedFilter(admin.SimpleListFilter):
         return queryset
 
 class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'first_name', 'last_name', 'opo_id', 'mobile_no', 'role', 'is_active', 'is_staff', 'created_by', 'is_deleted', 'formatted_created_at', 'formatted_updated_at')
+    list_display = ('email', 'first_name', 'last_name', 'opo_id', 'mobile_no', 'role', 'is_active', 'created_by', 'is_deleted', 'formatted_created_at', 'formatted_updated_at')
     
     def formatted_created_at(self, obj):
         if obj.created_at:

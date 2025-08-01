@@ -55,10 +55,23 @@ class LoginView(APIView):
             password=password
         )
         
-        if user is None or not user.is_active:
+        if user is None:
             return Response(
-                {'error': 'Invalid credentials or inactive account'},
+                {'error': 'Invalid credentials'},
                 status=status.HTTP_401_UNAUTHORIZED
+            )
+            
+        # Check if user is active and not deleted
+        if not user.is_active:
+            return Response(
+                {'error': 'Your account is inactive. Please contact the administrator.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        if user.is_deleted:
+            return Response(
+                {'error': 'Your account has been deleted. Please contact the administrator.'},
+                status=status.HTTP_403_FORBIDDEN
             )
         
         # Update last_login field

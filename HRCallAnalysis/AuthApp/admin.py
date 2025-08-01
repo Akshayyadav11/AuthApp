@@ -7,6 +7,11 @@ from .models import CustomUser, Role
 # Set the timezone to IST
 IST = timezone.get_fixed_timezone(330)  # UTC+5:30
 
+
+admin.site.site_header = 'HR Portal'       # Header/title
+admin.site.site_title = 'Admin' # Browser tab title
+admin.site.index_title = 'Welcome to HR Portal'   # Subtitle on index page
+
 class IsDeletedFilter(admin.SimpleListFilter):
     title = 'is deleted'
     parameter_name = 'is_deleted'

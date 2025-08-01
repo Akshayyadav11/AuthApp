@@ -44,9 +44,12 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Get the request user from the context
         request = self.context.get('request')
-        created_by = request.user if request and hasattr(request, 'user') else None
+        created_by = request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None
         
-        # Create the user with created_by set to the current user
+        # Remove created_by from validated_data to avoid passing it directly to create_user
+        validated_data.pop('created_by', None)
+        
+        # Create the user
         user = CustomUser.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
@@ -55,9 +58,14 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             opo_id=validated_data.get('opo_id'),
             mobile_no=validated_data.get('mobile_no'),
             role=validated_data.get('role'),
-            designation=validated_data.get('designation'),
-            created_by=created_by
+            designation=validated_data.get('designation')
         )
+        
+        # Set created_by separately if we have an authenticated user
+        if created_by:
+            user.created_by = created_by
+            user.save(update_fields=['created_by'])
+            
         return user
 
 class UserLoginSerializer(serializers.Serializer):

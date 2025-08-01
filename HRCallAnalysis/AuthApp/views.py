@@ -37,6 +37,8 @@ class LoginView(APIView):
     def post(self, request):
         from django.contrib.auth import authenticate
         from django.conf import settings
+        from django.db.models import Q
+        from .models import CustomUser
         
         username = request.data.get('username')
         password = request.data.get('password')
@@ -47,17 +49,42 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Try to authenticate using the custom backend
-        user = authenticate(
-            request=request,
-            username=username,
-            password=password
-        )
-        
-        if user is None:
+        # First, check if any user exists with the given identifier
+        try:
+            user = CustomUser.objects.get(
+                Q(email=username) | 
+                Q(opo_id=username) | 
+                Q(mobile_no=username)
+            )
+            
+            # If we found a user, try to authenticate with the password
+            user = authenticate(
+                request=request,
+                username=username,
+                password=password
+            )
+            
+            if user is None:
+                # If authentication fails but user exists, password is wrong
+                return Response(
+                    {'error': 'Invalid password'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+                
+        except CustomUser.DoesNotExist:
+            # No user found with the given identifier
+            # Try to determine which field was being used
+            if '@' in username:
+                error_msg = 'No account found with this email address.'
+            elif username.isdigit() and len(username) in [10, 12]:
+                error_msg = 'No account found with this mobile number.'
+            else:
+                # This is likely an OPO ID 
+                error_msg = 'No account found with this OPO ID.'
+                
             return Response(
-                {'error': 'Invalid credentials'},
-                status=status.HTTP_401_UNAUTHORIZED
+                {'error': error_msg},
+                status=status.HTTP_404_NOT_FOUND
             )
             
         # Check if user is active and not deleted

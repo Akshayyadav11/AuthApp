@@ -82,6 +82,8 @@ class LoginView(APIView):
         refresh = RefreshToken.for_user(user)
         
         return Response({
+            'status': True,
+            'message': 'Login successful',
             'user': UserSerializer(user).data,
             'refresh': str(refresh),
             'access': str(refresh.access_token),

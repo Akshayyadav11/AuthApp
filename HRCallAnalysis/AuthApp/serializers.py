@@ -27,6 +27,12 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
+    role_id = serializers.PrimaryKeyRelatedField(
+        queryset=Role.objects.all(),
+        source='role',
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = CustomUser
@@ -43,7 +49,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             last_name=validated_data['last_name'],
             opo_id=validated_data.get('opo_id'),
             mobile_no=validated_data.get('mobile_no'),
-            role=validated_data.get('role_id'),
+            role=validated_data.get('role'),
             designation=validated_data.get('designation'),
         )
         return user

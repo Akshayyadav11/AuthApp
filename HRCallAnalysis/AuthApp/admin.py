@@ -30,22 +30,22 @@ class IsDeletedFilter(admin.SimpleListFilter):
         return queryset
 
 class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'first_name', 'last_name', 'opo_id', 'mobile_no', 'role', 'is_active', 'created_by', 'is_deleted', 'formatted_created_at', 'formatted_updated_at')
-    
-    def formatted_created_at(self, obj):
-        if obj.created_at:
-            return timezone.localtime(obj.created_at, timezone=IST).strftime('%d/%m/%Y %H:%M')
-        return "-"
-    formatted_created_at.short_description = 'Created At'
-    formatted_created_at.admin_order_field = 'created_at'
-    
-    def formatted_updated_at(self, obj):
-        if obj.updated_at:
-            return timezone.localtime(obj.updated_at, timezone=IST).strftime('%d/%m/%Y %H:%M')
-        return "-"
-    formatted_updated_at.short_description = 'Updated At'
-    formatted_updated_at.admin_order_field = 'updated_at'
+    list_display = ('email', 'first_name', 'last_name', 'opo_id', 'mobile_no', 'role', 'is_active', 'created_by', 'is_deleted', 'raw_created_at', 'raw_updated_at')
     list_filter = (IsDeletedFilter, 'role', 'is_active', 'is_staff', 'created_at', 'updated_at')
+    
+    def raw_created_at(self, obj):
+        if obj.created_at:
+            return obj.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        return "-"
+    raw_created_at.admin_order_field = 'created_at'
+    raw_created_at.short_description = 'Created At'
+    
+    def raw_updated_at(self, obj):
+        if obj.updated_at:
+            return obj.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        return "-"
+    raw_updated_at.admin_order_field = 'updated_at'
+    raw_updated_at.short_description = 'Updated At'
     search_fields = ('email', 'first_name', 'last_name', 'opo_id', 'mobile_no')
     ordering = ('email',)
     filter_horizontal = ('groups', 'user_permissions',)

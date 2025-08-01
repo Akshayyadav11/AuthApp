@@ -13,7 +13,8 @@ class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
-        serializer = UserRegisterSerializer(data=request.data)
+        # Pass the request in the context to the serializer
+        serializer = UserRegisterSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.save()
             refresh = RefreshToken.for_user(user)

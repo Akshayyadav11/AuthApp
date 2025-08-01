@@ -42,6 +42,11 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         ]
     
     def create(self, validated_data):
+        # Get the request user from the context
+        request = self.context.get('request')
+        created_by = request.user if request and hasattr(request, 'user') else None
+        
+        # Create the user with created_by set to the current user
         user = CustomUser.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
@@ -51,6 +56,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             mobile_no=validated_data.get('mobile_no'),
             role=validated_data.get('role'),
             designation=validated_data.get('designation'),
+            created_by=created_by
         )
         return user
 

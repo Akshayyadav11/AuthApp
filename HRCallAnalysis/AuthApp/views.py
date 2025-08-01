@@ -192,52 +192,189 @@ class TokenRefreshView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+from django.db import connection
+from django.db.utils import DatabaseError
+
 class UserListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request):
-        users = CustomUser.objects.filter(is_deleted=False)
-        serializer = UserSerializer(users, many=True)
-        return Response(serializer.data)
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, last_login, is_superuser, first_name, last_name, 
+                           email, opo_id, mobile_no, role_id, designation, is_active, 
+                           is_staff, is_deleted, created_by_id, created_at, updated_at
+                    FROM AuthApp_customuser 
+                    WHERE is_deleted = 0
+                """)
+                columns = [col[0] for col in cursor.description]
+                users = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                
+                # Convert datetime fields to string for JSON serialization
+                for user in users:
+                    if user['last_login']:
+                        user['last_login'] = user['last_login'].isoformat()
+                    if user['created_at']:
+                        user['created_at'] = user['created_at'].isoformat()
+                    if user['updated_at']:
+                        user['updated_at'] = user['updated_at'].isoformat()
+                
+                return Response(users)
+                
+        except DatabaseError as e:
+            logger.error(f"Database error in UserListView: {str(e)}")
+            return Response(
+                {'error': 'An error occurred while fetching users'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class UserDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
+    def get_user_by_id(self, user_id):
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, password, last_login, is_superuser, first_name, last_name, 
+                       email, opo_id, mobile_no, role_id, designation, is_active, 
+                       is_staff, is_deleted, created_by_id, created_at, updated_at
+                FROM AuthApp_customuser 
+                WHERE id = %s AND is_deleted = 0
+            """, [user_id])
+            
+            columns = [col[0] for col in cursor.description]
+            row = cursor.fetchone()
+            if not row:
+                return None
+                
+            user = dict(zip(columns, row))
+            # Convert datetime fields to string for JSON serialization
+            if user['last_login']:
+                user['last_login'] = user['last_login'].isoformat()
+            if user['created_at']:
+                user['created_at'] = user['created_at'].isoformat()
+            if user['updated_at']:
+                user['updated_at'] = user['updated_at'].isoformat()
+            return user
+    
     def get(self, request, pk):
         try:
-            user = CustomUser.objects.get(pk=pk, is_deleted=False)
-        except CustomUser.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = UserSerializer(user)
-        return Response(serializer.data)
+            user = self.get_user_by_id(pk)
+            if not user:
+                return Response(
+                    {'error': 'User not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            return Response(user)
+            
+        except DatabaseError as e:
+            logger.error(f"Database error in UserDetailView get: {str(e)}")
+            return Response(
+                {'error': 'An error occurred while fetching user'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def put(self, request, pk):
         try:
-            user = CustomUser.objects.get(pk=pk, is_deleted=False)
-        except CustomUser.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        
-        serializer = UserSerializer(user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # First check if user exists and is not deleted
+            if not self.get_user_by_id(pk):
+                return Response(
+                    {'error': 'User not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Prepare the update query
+            update_fields = []
+            params = []
+            
+            # Add all fields that can be updated
+            for field in ['first_name', 'last_name', 'email', 'opo_id', 'mobile_no', 
+                         'role_id', 'designation', 'is_active', 'is_staff']:
+                if field in request.data:
+                    update_fields.append(f"{field} = %s")
+                    params.append(request.data[field])
+            
+            if not update_fields:
+                return Response(
+                    {'error': 'No valid fields to update'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Add updated_at
+            update_fields.append("updated_at = NOW()")
+            
+            # Add user_id for WHERE clause
+            params.append(pk)
+            
+            # Build and execute the update query
+            update_query = f"""
+                UPDATE authapp_customuser 
+                SET {', '.join(update_fields)}
+                WHERE id = %s AND is_deleted = 0
+            """
+            
+            with connection.cursor() as cursor:
+                cursor.execute(update_query, params)
+                if cursor.rowcount == 0:
+                    return Response(
+                        {'error': 'User not found or no changes made'}, 
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            
+            # Return the updated user
+            updated_user = self.get_user_by_id(pk)
+            return Response(updated_user)
+            
+        except DatabaseError as e:
+            logger.error(f"Database error in UserDetailView put: {str(e)}")
+            return Response(
+                {'error': 'An error occurred while updating user'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def delete(self, request, pk):
         try:
-            user = CustomUser.objects.get(pk=pk, is_deleted=False)
-        except CustomUser.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        
-        user.is_deleted = True
-        user.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE AuthApp_customuser 
+                    SET is_deleted = 1, updated_at = NOW()
+                    WHERE id = %s AND is_deleted = 0
+                """, [pk])
+                
+                if cursor.rowcount == 0:
+                    return Response(
+                        {'error': 'User not found or already deleted'}, 
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                    
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except DatabaseError as e:
+            logger.error(f"Database error in UserDetailView delete: {str(e)}")
+            return Response(
+                {'error': 'An error occurred while deleting user'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class RoleListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request):
-        roles = Role.objects.all()
-        serializer = RoleSerializer(roles, many=True)
-        return Response(serializer.data)
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, name
+                    FROM AuthApp_role
+                    ORDER BY id
+                """)
+                
+                columns = [col[0] for col in cursor.description]
+                roles = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                return Response(roles)
+                
+        except DatabaseError as e:
+            logger.error(f"Database error in RoleListView: {str(e)}")
+            return Response(
+                {'error': 'An error occurred while fetching roles'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

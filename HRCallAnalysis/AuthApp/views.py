@@ -24,11 +24,10 @@ class RegisterView(APIView):
         serializer = UserRegisterSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.save()
-            refresh = RefreshToken.for_user(user)
             return Response({
                 'user': UserSerializer(user).data,
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
+                'message': 'User registered successfully.',
+                'status': True
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

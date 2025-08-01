@@ -11,6 +11,7 @@ from .serializers import (
     UserLoginSerializer, TokenSerializer, RoleSerializer
 )
 from .models import CustomUser, Role
+from django.utils import timezone
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -59,6 +60,10 @@ class LoginView(APIView):
                 {'error': 'Invalid credentials or inactive account'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+        
+        # Update last_login field
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
         
         # Generate tokens
         refresh = RefreshToken.for_user(user)
